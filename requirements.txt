@@ -6,3 +6,4 @@ Pillow
 matplotlib
 seaborn
 watermark
+numba
