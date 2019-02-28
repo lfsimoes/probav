@@ -13,6 +13,8 @@ from collections import Counter, defaultdict
 from scipy.stats import percentileofscore
 
 from .aggregate import central_tendency
+from .score import score_image_fast, hr_crops
+from .io import highres_image, scene_id
 
 
 
@@ -83,6 +85,109 @@ def score_summary(*score_sets, labels=None, **kwargs):
 	df = pd.DataFrame(list(zip(*score_sets)), columns=labels).describe()
 	df.index.name = 'cPSNR'
 	return df
+	
+
+
+# [============================================================================]
+
+
+def create_panel(ncols=2, nrows=1):
+	"""
+	Initialize a panel with `ncols` columns and `nrows` rows.
+	Configures the axes for image display: no ticks, no frame and equal aspect.
+	
+	Usage example:
+	>>> fig, axs = create_panel(2, 2)
+	>>> axs.flat[3].imshow(image)
+	"""
+	ax_cfg = dict(xticks=[], yticks=[], aspect='equal', frame_on=False)
+	# additional options at:
+	# https://matplotlib.org/api/_as_gen/matplotlib.figure.Figure.html#matplotlib.figure.Figure.add_subplot
+	
+	fig, axs = plt.subplots(nrows, ncols,
+	                        figsize=(5 * ncols, 5 * nrows),
+	                        subplot_kw=ax_cfg)
+	fig.tight_layout()
+	
+	return fig, axs
+	
+
+
+def compare_images(a, b, d=None):
+	"""
+	Compare side-by-side the images `a` and `b`.
+	Shows on a third panel the squared difference between both, while
+	compensating for the bias in brightness.
+	"""
+	fig, axs = create_panel(ncols=3, nrows=1)
+	
+	if d is None:
+		d = a - b
+		d -= np.mean(d)
+		d *= d
+	
+	for ax, img, args in zip(axs.flat,
+	                         [a, b, d],
+	                         [{}, {}, dict(cmap=plt.cm.gray_r, vmin=0)]):
+		
+		ax.imshow(img, **args)
+	
+	return fig, axs
+	
+
+
+def compare_to_hr(sr, scene, only_clear=True):
+	"""
+	Compare side-by-side a super-resolved image `sr` of a given `scene` and its
+	ground-truth (`hr`, the scene's high-resolution image).
+	
+	Shows on a third panel the squared difference between both, while
+	compensating for the bias in brightness (`b`). Conceals by default
+	(`only_clear=True`) the pixels that are obscured in the `hr` image and don't
+	therefore interfere in the determination of `sr`'s cPSNR.
+	
+	Applies the same registration process that is employed by the competition's
+	scoring function, which means the displayed images have a total of 6 pixels
+	cropped along the edges in each dimension.
+	
+	The scene's cPSNR value shown on the left panel relates to the (rounded)
+	`mean` value on the right panel (if `only_clear=True`) as:
+	>>> baseline_cPSNR.loc[scene_id(scene)] / (-10. * np.log10(mean))
+	"""
+	(hr, sm) = highres_image(scene)
+	
+	sr_score = score_image_fast(sr, scene, (hr, sm))
+	
+	# image registration
+	sr = sr[3 : -3, 3 : -3]
+	min_cmse = None
+	for (_hr, _sm) in hr_crops(hr, sm):
+		d = _hr - sr
+		if only_clear:
+			d[~_sm] = np.nan
+		d -= np.nanmean(d)
+		d *= d
+		m = np.nanmean(d)
+		if min_cmse is None or m < min_cmse[0]:
+			min_cmse = (m, d, _hr)
+	(m, d, hr) = min_cmse
+	
+	fig, axs = compare_images(sr, hr, d)
+	
+	axs[0].set_title('super-resolved image, cPSNR: %.4f' % sr_score)
+	axs[1].set_title('high-resolution image (ground-truth)')
+	axs[2].set_title('(hr - sr - b)^2\n' + \
+		'mean: %.2e, std: %.2e, max: %.2e' % (m, np.nanstd(d), np.nanmax(d)),
+		fontdict=dict(verticalalignment='center'))
+	
+	# display the scene's id to the left of the image
+	axs[0].text(-.01, 0.5, scene_id(scene, incl_channel=True),
+		horizontalalignment='right',
+		verticalalignment='center',
+		rotation='vertical',
+		transform=axs[0].transAxes)
+	
+	return fig, axs
 	
 
 

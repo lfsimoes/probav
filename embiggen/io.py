@@ -66,7 +66,7 @@ def lowres_image_iterator(path, img_as_float=True):
 # [============================================================================]
 
 
-def check_img_as_float(img):
+def check_img_as_float(img, validate=True):
 	"""
 	Ensure `img` is a matrix of values in floating point format in [0.0, 1.0].
 	Returns `img` if it already obeys those requirements, otherwise converts it.
@@ -75,9 +75,10 @@ def check_img_as_float(img):
 		img = skimage.img_as_float64(img)
 	# https://scikit-image.org/docs/dev/api/skimage.html#img-as-float64
 	
-	# safeguard against unwanted conversions to values outside the [0.0, 1.0]
-	# range (would happen if `img` had signed values).
-	assert img.min() >= 0 and img.max() <= 1.0
+	if validate:
+		# safeguard against unwanted conversions to values outside the
+		# [0.0, 1.0] range (would happen if `img` had signed values).
+		assert img.min() >= 0.0 and img.max() <= 1.0
 	
 	return img
 	
