@@ -13,8 +13,9 @@ Competition website: https://kelvins.esa.int/proba-v-super-resolution/.
 
 This repository offers `embiggen`, a Python module implementing a set of core functionalities to help participants to the PROBA-V Kelvins competition: scoring function, image file access, image aggregation and upscaling, creating submissions...
 
-A walkthrough of the module is provided in the notebook:
+A walkthrough of the module is provided in the notebooks:
 * [00 - module demo.ipynb][nb00]
+* [01 - improved feedback.ipynb][nb01]
 
 To launch a Jupyter notebook session running this code, click:
 * [![Binder](http://mybinder.org/badge.svg)][mybinder]
@@ -23,3 +24,4 @@ To launch a Jupyter notebook session running this code, click:
 [mybinder]: http://mybinder.org:/repo/lfsimoes/probav
 [probav_wikipedia]: https://en.wikipedia.org/wiki/PROBA-V
 [nb00]: https://nbviewer.jupyter.org/github/lfsimoes/probav/blob/master/00%20-%20module%20demo.ipynb
+[nb01]: https://nbviewer.jupyter.org/github/lfsimoes/probav/blob/master/01%20-%20improved%20feedback.ipynb?flush_cache=true
