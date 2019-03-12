@@ -118,10 +118,13 @@ def hr_crops(hr, sm):
 	(u,v) and its lower right corner at (378+u, 378+v)."
 	-- https://kelvins.esa.int/proba-v-super-resolution/scoring/
 	"""
-	for u in range(6):
-		for v in range(6):
-			yield hr[u : -6 + u, v : -6 + v], \
-				  sm[u : -6 + u, v : -6 + v]
+	num_cropped = 6
+	max_u, max_v = np.array(hr.shape) - num_cropped
+	
+	for u in range(num_cropped + 1):
+		for v in range(num_cropped + 1):
+			yield hr[u : max_u + u, v : max_v + v], \
+				  sm[u : max_u + u, v : max_v + v]
 	
 
 
@@ -160,37 +163,41 @@ def score_image_fast(sr, scene_path, hr_sm=None):
 def score_against_hr(sr, hr, sm, N):
 	"""
 	Numba-compiled version of the scoring function.
-	"""	
+	"""
+	num_cropped = 6
+	max_u, max_v = np.array(hr.shape) - num_cropped
+	
 	# "To compensate for pixel-shifts, the submitted images are
 	# cropped by a 3 pixel border, resulting in a 378x378 format."
-	sr_crop = sr[3 : -3, 3 : -3].ravel()
+	c = num_cropped // 2
+	sr_crop = sr[c : -c, c : -c].ravel()
+	
+	# create a copy of `hr` with NaNs at obscured pixels
+	# (`flatten` used to bypass numba's indexing limitations)
+	hr_ = hr.flatten()
+	hr_[(~sm).ravel()] = np.nan
+	hr = hr_.reshape(hr.shape)
 	
 #	crop_scores = []
-	cMSEs = np.zeros((6, 6), np.float64)
+	cMSEs = np.zeros((num_cropped + 1, num_cropped + 1), np.float64)
 	
-	for u in numba.prange(6):
-		for v in numba.prange(6):
+	for u in numba.prange(num_cropped + 1):
+		for v in numba.prange(num_cropped + 1):
 			
 			# "We denote the cropped 378x378 images as follows: for all u,v ∈
 			# {0,…,6}, HR_{u,v} is the subimage of HR with its upper left corner
 			# at coordinates (u,v) and its lower right corner at (378+u, 378+v)"
-			hr_crop = hr[u : -6 + u, v : -6 + v].ravel()
-			sm_crop = sm[u : -6 + u, v : -6 + v].ravel()
-			
-			# values at the cropped versions of each image that
-			# fall in clear pixels of the cropped `hr` image
-			_sm_crop = np.where(sm_crop)
-			_hr = hr_crop[_sm_crop]
-			_sr = sr_crop[_sm_crop]
+			hr_crop = hr[u : max_u + u, v : max_v + v].ravel()
 			
 			# "we first compute the bias in brightness b"
-			pixel_diff = _hr - _sr
-			b = np.mean(pixel_diff)
+			pixel_diff = hr_crop - sr_crop
+			b = np.nanmean(pixel_diff)
 			
 			# "Next, we compute the corrected clear mean-square
 			# error cMSE of SR w.r.t. HR_{u,v}"
 			pixel_diff -= b
-			cMSE = np.mean(pixel_diff * pixel_diff)
+			pixel_diff *= pixel_diff
+			cMSE = np.nanmean(pixel_diff)
 			
 			# "which results in a clear Peak Signal to Noise Ratio of"
 #			cPSNR = -10. * np.log10(cMSE)
